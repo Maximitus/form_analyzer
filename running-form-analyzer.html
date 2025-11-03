@@ -1,0 +1,544 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Running Form Analyzer</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #667eea;
+            margin-bottom: 20px;
+            text-align: center;
+        }
+        .upload-section {
+            margin-bottom: 20px;
+            padding: 20px;
+            border: 2px dashed #667eea;
+            border-radius: 10px;
+            text-align: center;
+        }
+        .upload-section input[type="file"] {
+            display: none;
+        }
+        .upload-btn {
+            background: #667eea;
+            color: white;
+            padding: 12px 30px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        .upload-btn:hover {
+            background: #5568d3;
+        }
+        .canvas-container {
+            position: relative;
+            margin-bottom: 20px;
+            background: #000;
+            border-radius: 10px;
+            overflow: hidden;
+            display: none;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: auto;
+            cursor: crosshair;
+        }
+        .controls {
+            margin-bottom: 20px;
+        }
+        .slider-container {
+            margin-bottom: 15px;
+        }
+        .slider-container label {
+            display: block;
+            margin-bottom: 5px;
+            color: #333;
+            font-weight: 600;
+        }
+        input[type="range"] {
+            width: 100%;
+            height: 8px;
+            border-radius: 5px;
+            background: #ddd;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+        }
+        .toolbar {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+        }
+        .tool-btn {
+            padding: 10px 20px;
+            border: 2px solid #667eea;
+            background: white;
+            color: #667eea;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        .tool-btn:hover {
+            background: #f0f0f0;
+        }
+        .tool-btn.active {
+            background: #667eea;
+            color: white;
+        }
+        .info-panel {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+        .info-panel h3 {
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        .measurement {
+            background: white;
+            padding: 10px;
+            margin: 5px 0;
+            border-radius: 5px;
+            border-left: 4px solid #667eea;
+        }
+        .frame-info {
+            text-align: center;
+            color: #666;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .loading {
+            text-align: center;
+            color: #667eea;
+            padding: 20px;
+            font-size: 18px;
+        }
+        .play-controls {
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+        .play-btn {
+            padding: 10px 20px;
+            background: #667eea;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .play-btn:hover {
+            background: #5568d3;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🏃 Running Form Analyzer</h1>
+        
+        <div class="upload-section">
+            <input type="file" id="videoInput" accept="video/*">
+            <label for="videoInput" class="upload-btn">Upload Running Video</label>
+            <p style="margin-top: 10px; color: #666;">Upload a video (MP4 recommended) to analyze running form frame by frame</p>
+        </div>
+
+        <div id="loadingMessage" class="loading" style="display: none;">
+            Loading video...
+        </div>
+
+        <div class="canvas-container" id="canvasContainer">
+            <canvas id="canvas"></canvas>
+        </div>
+
+        <div class="controls" id="controls" style="display: none;">
+            <div class="frame-info" id="frameInfo">Frame: 0</div>
+            
+            <div class="play-controls">
+                <button class="play-btn" id="playBtn">▶ Play</button>
+                <button class="play-btn" id="pauseBtn" style="display: none;">⏸ Pause</button>
+            </div>
+
+            <div class="slider-container">
+                <label for="frameSlider">Frame Position</label>
+                <input type="range" id="frameSlider" min="0" max="100" value="0" step="0.1">
+            </div>
+
+            <div class="toolbar">
+                <button class="tool-btn" id="drawLineBtn">Draw Line</button>
+                <button class="tool-btn" id="measureAngleBtn">Measure Angle (3 points)</button>
+                <button class="tool-btn" id="clearBtn">Clear All</button>
+                <button class="tool-btn" id="undoBtn">Undo Last</button>
+            </div>
+
+            <div class="info-panel">
+                <h3>Measurements</h3>
+                <div id="measurements">
+                    <p style="color: #999;">No measurements yet. Use the tools above to draw lines and measure angles.</p>
+                </div>
+            </div>
+
+            <div class="info-panel" style="margin-top: 15px;">
+                <h3>Instructions</h3>
+                <ul style="margin-left: 20px; color: #666;">
+                    <li><strong>Draw Line:</strong> Click two points to draw a line</li>
+                    <li><strong>Measure Angle:</strong> Click three points (vertex in the middle) to measure an angle</li>
+                    <li>Use the slider to navigate through frames or click Play</li>
+                    <li>Clear removes all drawings, Undo removes the last one</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <video id="hiddenVideo" style="display: none;" muted></video>
+
+    <script>
+        const videoInput = document.getElementById('videoInput');
+        const hiddenVideo = document.getElementById('hiddenVideo');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const frameSlider = document.getElementById('frameSlider');
+        const canvasContainer = document.getElementById('canvasContainer');
+        const controls = document.getElementById('controls');
+        const frameInfo = document.getElementById('frameInfo');
+        const measurementsDiv = document.getElementById('measurements');
+        const loadingMessage = document.getElementById('loadingMessage');
+        const playBtn = document.getElementById('playBtn');
+        const pauseBtn = document.getElementById('pauseBtn');
+
+        let currentTool = null;
+        let points = [];
+        let drawings = [];
+        let videoLoaded = false;
+        let isPlaying = false;
+        let animationFrame = null;
+
+        // Tool buttons
+        document.getElementById('drawLineBtn').addEventListener('click', () => {
+            setTool('line');
+        });
+
+        document.getElementById('measureAngleBtn').addEventListener('click', () => {
+            setTool('angle');
+        });
+
+        document.getElementById('clearBtn').addEventListener('click', () => {
+            drawings = [];
+            points = [];
+            redrawCanvas();
+        });
+
+        document.getElementById('undoBtn').addEventListener('click', () => {
+            if (drawings.length > 0) {
+                drawings.pop();
+                points = [];
+                redrawCanvas();
+            }
+        });
+
+        playBtn.addEventListener('click', () => {
+            if (videoLoaded) {
+                hiddenVideo.play();
+                isPlaying = true;
+                playBtn.style.display = 'none';
+                pauseBtn.style.display = 'inline-block';
+            }
+        });
+
+        pauseBtn.addEventListener('click', () => {
+            hiddenVideo.pause();
+            isPlaying = false;
+            pauseBtn.style.display = 'none';
+            playBtn.style.display = 'inline-block';
+        });
+
+        function setTool(tool) {
+            currentTool = tool;
+            points = [];
+            document.querySelectorAll('.tool-btn').forEach(btn => btn.classList.remove('active'));
+            if (tool === 'line') {
+                document.getElementById('drawLineBtn').classList.add('active');
+            } else if (tool === 'angle') {
+                document.getElementById('measureAngleBtn').classList.add('active');
+            }
+            redrawCanvas();
+        }
+
+        // Video upload
+        videoInput.addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            loadingMessage.style.display = 'block';
+            
+            try {
+                // Create blob URL
+                const blobUrl = URL.createObjectURL(file);
+                
+                hiddenVideo.src = blobUrl;
+                hiddenVideo.load();
+                
+                hiddenVideo.onloadedmetadata = () => {
+                    console.log('Video metadata loaded');
+                    canvas.width = hiddenVideo.videoWidth;
+                    canvas.height = hiddenVideo.videoHeight;
+                    frameSlider.max = hiddenVideo.duration;
+                    hiddenVideo.currentTime = 0;
+                };
+
+                hiddenVideo.onloadeddata = () => {
+                    console.log('Video data loaded');
+                    loadingMessage.style.display = 'none';
+                    canvasContainer.style.display = 'block';
+                    controls.style.display = 'block';
+                    videoLoaded = true;
+                    redrawCanvas();
+                };
+
+                hiddenVideo.onerror = (e) => {
+                    console.error('Video error:', hiddenVideo.error);
+                    loadingMessage.textContent = 'Error loading video. Please try converting to MP4 format.';
+                    
+                    // Fallback: try to use the file directly
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        hiddenVideo.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                };
+
+                hiddenVideo.ontimeupdate = () => {
+                    if (isPlaying) {
+                        frameSlider.value = hiddenVideo.currentTime;
+                        redrawCanvas();
+                    }
+                    updateFrameInfo();
+                };
+
+            } catch (error) {
+                console.error('Error:', error);
+                loadingMessage.textContent = 'Error loading video: ' + error.message;
+            }
+        });
+
+        // Frame slider
+        frameSlider.addEventListener('input', (e) => {
+            if (videoLoaded) {
+                hiddenVideo.currentTime = parseFloat(e.target.value);
+            }
+        });
+
+        hiddenVideo.addEventListener('seeked', () => {
+            redrawCanvas();
+        });
+
+        function updateFrameInfo() {
+            if (!videoLoaded) return;
+            const currentFrame = Math.round(hiddenVideo.currentTime * 30);
+            const totalFrames = Math.round(hiddenVideo.duration * 30);
+            frameInfo.textContent = `Frame: ${currentFrame} / ${totalFrames} | Time: ${hiddenVideo.currentTime.toFixed(2)}s / ${hiddenVideo.duration.toFixed(2)}s`;
+        }
+
+        function redrawCanvas() {
+            if (!videoLoaded) return;
+            
+            // Draw video frame
+            ctx.drawImage(hiddenVideo, 0, 0, canvas.width, canvas.height);
+            
+            // Draw all saved drawings
+            drawings.forEach(drawing => {
+                if (drawing.type === 'line') {
+                    drawLine(drawing.p1, drawing.p2, false);
+                } else if (drawing.type === 'angle') {
+                    drawAngle(drawing.p1, drawing.p2, drawing.p3, drawing.angle, false);
+                }
+            });
+
+            // Draw current points
+            points.forEach(p => {
+                drawPoint(p);
+            });
+
+            updateFrameInfo();
+        }
+
+        function drawPoint(p) {
+            ctx.fillStyle = '#ff0000';
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 6, 0, Math.PI * 2);
+            ctx.fill();
+            
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+
+        function drawLine(p1, p2, temporary = true) {
+            ctx.strokeStyle = temporary ? '#00ff00' : '#ffff00';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            ctx.shadowBlur = 4;
+            ctx.beginPath();
+            ctx.moveTo(p1.x, p1.y);
+            ctx.lineTo(p2.x, p2.y);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        }
+
+        function drawAngle(p1, p2, p3, angle, temporary = true) {
+            // Draw lines
+            ctx.strokeStyle = temporary ? '#00ff00' : '#ffff00';
+            ctx.lineWidth = 4;
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+            ctx.shadowBlur = 4;
+            
+            ctx.beginPath();
+            ctx.moveTo(p2.x, p2.y);
+            ctx.lineTo(p1.x, p1.y);
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(p2.x, p2.y);
+            ctx.lineTo(p3.x, p3.y);
+            ctx.stroke();
+            
+            ctx.shadowBlur = 0;
+
+            // Draw arc
+            const radius = 50;
+            const angle1 = Math.atan2(p1.y - p2.y, p1.x - p2.x);
+            const angle2 = Math.atan2(p3.y - p2.y, p3.x - p2.x);
+            
+            ctx.strokeStyle = '#ff00ff';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(p2.x, p2.y, radius, angle1, angle2, angle2 < angle1);
+            ctx.stroke();
+
+            // Draw angle text with background
+            const textX = p2.x + 60;
+            const textY = p2.y - 10;
+            const text = `${angle.toFixed(1)}°`;
+            
+            ctx.font = 'bold 24px Arial';
+            const metrics = ctx.measureText(text);
+            const textWidth = metrics.width;
+            
+            // Background
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+            ctx.fillRect(textX - 8, textY - 24, textWidth + 16, 36);
+            
+            // Text
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(text, textX, textY);
+        }
+
+        function calculateAngle(p1, p2, p3) {
+            const v1 = { x: p1.x - p2.x, y: p1.y - p2.y };
+            const v2 = { x: p3.x - p2.x, y: p3.y - p2.y };
+            
+            const dot = v1.x * v2.x + v1.y * v2.y;
+            const mag1 = Math.sqrt(v1.x * v1.x + v1.y * v1.y);
+            const mag2 = Math.sqrt(v2.x * v2.x + v2.y * v2.y);
+            
+            let angle = Math.acos(Math.max(-1, Math.min(1, dot / (mag1 * mag2)))) * (180 / Math.PI);
+            return angle;
+        }
+
+        function updateMeasurements() {
+            if (drawings.length === 0) {
+                measurementsDiv.innerHTML = '<p style="color: #999;">No measurements yet. Use the tools above to draw lines and measure angles.</p>';
+                return;
+            }
+
+            let html = '';
+            drawings.forEach((drawing, index) => {
+                if (drawing.type === 'angle') {
+                    html += `<div class="measurement">
+                        <strong>Angle ${index + 1}:</strong> ${drawing.angle.toFixed(1)}°
+                    </div>`;
+                } else if (drawing.type === 'line') {
+                    html += `<div class="measurement">
+                        <strong>Line ${index + 1}:</strong> Reference line drawn
+                    </div>`;
+                }
+            });
+            measurementsDiv.innerHTML = html;
+        }
+
+        // Canvas click handler
+        canvas.addEventListener('click', (e) => {
+            if (!currentTool || !videoLoaded) return;
+
+            const rect = canvas.getBoundingClientRect();
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+
+            points.push({ x, y });
+
+            if (currentTool === 'line' && points.length === 2) {
+                drawings.push({
+                    type: 'line',
+                    p1: points[0],
+                    p2: points[1]
+                });
+                points = [];
+                currentTool = null;
+                document.getElementById('drawLineBtn').classList.remove('active');
+                redrawCanvas();
+                updateMeasurements();
+            } else if (currentTool === 'angle' && points.length === 3) {
+                const angle = calculateAngle(points[0], points[1], points[2]);
+                drawings.push({
+                    type: 'angle',
+                    p1: points[0],
+                    p2: points[1],
+                    p3: points[2],
+                    angle: angle
+                });
+                points = [];
+                currentTool = null;
+                document.getElementById('measureAngleBtn').classList.remove('active');
+                redrawCanvas();
+                updateMeasurements();
+            } else {
+                redrawCanvas();
+            }
+        });
+    </script>
+</body>
+</html>
