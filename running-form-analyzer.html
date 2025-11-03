@@ -52,69 +52,238 @@
         .upload-btn:hover {
             background: #5568d3;
         }
-        .canvas-container {
+        .video-wrapper {
             position: relative;
             margin-bottom: 20px;
             background: #000;
             border-radius: 10px;
             overflow: hidden;
             display: none;
+            width: 100%;
+            max-width: 100%;
+        }
+        .video-wrapper:fullscreen {
+            border-radius: 0;
+            margin-bottom: 0;
+        }
+        .video-wrapper:-webkit-full-screen {
+            border-radius: 0;
+            margin-bottom: 0;
+        }
+        .video-wrapper:-moz-full-screen {
+            border-radius: 0;
+            margin-bottom: 0;
+        }
+        .video-wrapper:-ms-fullscreen {
+            border-radius: 0;
+            margin-bottom: 0;
+        }
+        .video-wrapper:fullscreen .canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        .video-wrapper:-webkit-full-screen .canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        .video-wrapper:-moz-full-screen .canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        .video-wrapper:-ms-fullscreen .canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+        .canvas-container {
+            position: relative;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
         canvas {
             display: block;
-            width: 100%;
+            max-width: 100%;
+            max-height: calc(100vh - 200px);
             height: auto;
             cursor: crosshair;
+            width: auto;
+            object-fit: contain;
         }
-        .controls {
-            margin-bottom: 20px;
+        .controls-overlay {
+            position: absolute;
+            top: 0;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            pointer-events: none;
         }
-        .slider-container {
-            margin-bottom: 15px;
+        .controls-overlay > * {
+            pointer-events: auto;
         }
-        .slider-container label {
-            display: block;
-            margin-bottom: 5px;
-            color: #333;
-            font-weight: 600;
+        /* Tool Widget - Top Right */
+        .tool-widget {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            z-index: 10;
         }
-        input[type="range"] {
-            width: 100%;
-            height: 8px;
-            border-radius: 5px;
-            background: #ddd;
-            outline: none;
-        }
-        input[type="range"]::-webkit-slider-thumb {
-            appearance: none;
-            width: 20px;
-            height: 20px;
+        .tool-widget-toggle {
+            width: 40px;
+            height: 40px;
             border-radius: 50%;
-            background: #667eea;
+            background: rgba(102, 126, 234, 0.9);
+            color: white;
+            border: 2px solid #fff;
             cursor: pointer;
-        }
-        .toolbar {
+            font-size: 20px;
             display: flex;
-            gap: 10px;
-            flex-wrap: wrap;
-            margin-bottom: 15px;
-        }
-        .tool-btn {
-            padding: 10px 20px;
-            border: 2px solid #667eea;
-            background: white;
-            color: #667eea;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.5);
             transition: all 0.3s;
         }
+        .tool-widget-toggle:hover {
+            background: #667eea;
+            transform: scale(1.1);
+        }
+        .toolbar {
+            position: absolute;
+            top: 60px;
+            right: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: rgba(0, 0, 0, 0.85);
+            padding: 12px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+            opacity: 0;
+            visibility: hidden;
+            transform: translateY(-10px);
+            transition: all 0.3s;
+            min-width: 150px;
+        }
+        .tool-widget.active .toolbar {
+            opacity: 1;
+            visibility: visible;
+            transform: translateY(0);
+        }
+        .tool-btn {
+            padding: 10px 16px;
+            border: 2px solid #667eea;
+            background: rgba(255, 255, 255, 0.95);
+            color: #667eea;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 13px;
+            transition: all 0.3s;
+            font-weight: 600;
+            text-align: left;
+        }
         .tool-btn:hover {
-            background: #f0f0f0;
+            background: #fff;
+            transform: translateX(5px);
         }
         .tool-btn.active {
             background: #667eea;
             color: white;
+            border-color: #667eea;
+        }
+        /* Icon Buttons */
+        .icon-btn {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            background: rgba(102, 126, 234, 0.9);
+            color: white;
+            border: 2px solid rgba(255, 255, 255, 0.8);
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+            transition: all 0.3s;
+            padding: 0;
+        }
+        .icon-btn:hover {
+            background: #667eea;
+            transform: scale(1.1);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        }
+        .fullscreen-icon-btn {
+            position: absolute;
+            bottom: 15px;
+            right: 15px;
+        }
+        /* Bottom Controls Bar */
+        .bottom-controls {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(to top, rgba(0, 0, 0, 0.9) 0%, rgba(0, 0, 0, 0.7) 50%, transparent 100%);
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+        }
+        .play-pause-container {
+            display: flex;
+            align-items: center;
+        }
+        .slider-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+        .frame-info {
+            color: #fff;
+            font-size: 12px;
+            font-weight: 600;
+            text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+        }
+        /* Bar Slider */
+        .bar-slider {
+            width: 100%;
+            height: 6px;
+            border-radius: 3px;
+            background: rgba(255, 255, 255, 0.3);
+            outline: none;
+            -webkit-appearance: none;
+            appearance: none;
+            cursor: pointer;
+        }
+        .bar-slider::-webkit-slider-thumb {
+            appearance: none;
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+            border: 2px solid #fff;
+        }
+        .bar-slider::-moz-range-thumb {
+            width: 18px;
+            height: 18px;
+            border-radius: 50%;
+            background: #667eea;
+            cursor: pointer;
+            border: 2px solid #fff;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
+        }
+        .bar-slider::-webkit-slider-runnable-track {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+        .bar-slider::-moz-range-track {
+            height: 6px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
         }
         .info-panel {
             background: #f8f9fa;
@@ -133,35 +302,67 @@
             border-radius: 5px;
             border-left: 4px solid #667eea;
         }
-        .frame-info {
-            text-align: center;
-            color: #666;
-            margin-bottom: 10px;
-            font-weight: bold;
-        }
         .loading {
             text-align: center;
             color: #667eea;
             padding: 20px;
             font-size: 18px;
         }
-        .play-controls {
-            display: flex;
-            gap: 10px;
-            justify-content: center;
-            margin-bottom: 15px;
+        .video-wrapper:fullscreen {
+            background: #000;
         }
-        .play-btn {
-            padding: 10px 20px;
-            background: #667eea;
-            color: white;
-            border: none;
-            border-radius: 8px;
-            cursor: pointer;
-            font-size: 14px;
+        .video-wrapper:-webkit-full-screen {
+            background: #000;
         }
-        .play-btn:hover {
-            background: #5568d3;
+        .video-wrapper:-moz-full-screen {
+            background: #000;
+        }
+        .video-wrapper:-ms-fullscreen {
+            background: #000;
+        }
+        @media (max-width: 768px) {
+            .container {
+                padding: 15px;
+            }
+            .bottom-controls {
+                padding: 12px 15px;
+            }
+            .tool-btn {
+                padding: 8px 12px;
+                font-size: 12px;
+            }
+            .frame-info {
+                font-size: 11px;
+            }
+            .bar-slider {
+                height: 5px;
+            }
+            .bar-slider::-webkit-slider-thumb {
+                width: 16px;
+                height: 16px;
+            }
+            .bar-slider::-moz-range-thumb {
+                width: 16px;
+                height: 16px;
+            }
+            .icon-btn {
+                width: 32px;
+                height: 32px;
+                font-size: 14px;
+            }
+            .tool-widget-toggle {
+                width: 36px;
+                height: 36px;
+                font-size: 18px;
+            }
+            .fullscreen-icon-btn {
+                bottom: 12px;
+                right: 12px;
+            }
+            .tool-widget {
+                top: 12px;
+                right: 12px;
+            }
         }
     </style>
 </head>
@@ -179,46 +380,55 @@
             Loading video...
         </div>
 
-        <div class="canvas-container" id="canvasContainer">
-            <canvas id="canvas"></canvas>
-        </div>
+        <div class="video-wrapper" id="videoWrapper">
+            <div class="canvas-container" id="canvasContainer">
+                <canvas id="canvas"></canvas>
+                <div class="controls-overlay" id="controls" style="display: none;">
+                    <!-- Tool Widget - Top Right -->
+                    <div class="tool-widget">
+                        <button class="tool-widget-toggle" id="toolWidgetToggle">⚙</button>
+                        <div class="toolbar" id="toolbar">
+                            <button class="tool-btn" id="drawLineBtn" title="Draw Line">Draw Line</button>
+                            <button class="tool-btn" id="measureAngleBtn" title="Measure Angle">Measure Angle</button>
+                            <button class="tool-btn" id="clearBtn" title="Clear All">Clear</button>
+                            <button class="tool-btn" id="undoBtn" title="Undo Last">Undo</button>
+                        </div>
+                    </div>
 
-        <div class="controls" id="controls" style="display: none;">
-            <div class="frame-info" id="frameInfo">Frame: 0</div>
-            
-            <div class="play-controls">
-                <button class="play-btn" id="playBtn">▶ Play</button>
-                <button class="play-btn" id="pauseBtn" style="display: none;">⏸ Pause</button>
-            </div>
+                    <!-- Fullscreen Button - Bottom Right -->
+                    <button class="icon-btn fullscreen-icon-btn" id="fullscreenBtn" title="Fullscreen">⛶</button>
 
-            <div class="slider-container">
-                <label for="frameSlider">Frame Position</label>
-                <input type="range" id="frameSlider" min="0" max="100" value="0" step="0.1">
-            </div>
-
-            <div class="toolbar">
-                <button class="tool-btn" id="drawLineBtn">Draw Line</button>
-                <button class="tool-btn" id="measureAngleBtn">Measure Angle (3 points)</button>
-                <button class="tool-btn" id="clearBtn">Clear All</button>
-                <button class="tool-btn" id="undoBtn">Undo Last</button>
-            </div>
-
-            <div class="info-panel">
-                <h3>Measurements</h3>
-                <div id="measurements">
-                    <p style="color: #999;">No measurements yet. Use the tools above to draw lines and measure angles.</p>
+                    <!-- Bottom Controls Bar -->
+                    <div class="bottom-controls">
+                        <div class="play-pause-container">
+                            <button class="icon-btn" id="playBtn" title="Play">▶</button>
+                            <button class="icon-btn" id="pauseBtn" style="display: none;" title="Pause">⏸</button>
+                        </div>
+                        
+                        <div class="slider-container">
+                            <div class="frame-info" id="frameInfo">Frame: 0</div>
+                            <input type="range" id="frameSlider" min="0" max="100" value="0" step="0.1" class="bar-slider">
+                        </div>
+                    </div>
                 </div>
             </div>
+        </div>
 
-            <div class="info-panel" style="margin-top: 15px;">
-                <h3>Instructions</h3>
-                <ul style="margin-left: 20px; color: #666;">
-                    <li><strong>Draw Line:</strong> Click two points to draw a line</li>
-                    <li><strong>Measure Angle:</strong> Click three points (vertex in the middle) to measure an angle</li>
-                    <li>Use the slider to navigate through frames or click Play</li>
-                    <li>Clear removes all drawings, Undo removes the last one</li>
-                </ul>
+        <div class="info-panel" id="infoPanel" style="display: none;">
+            <h3>Measurements</h3>
+            <div id="measurements">
+                <p style="color: #999;">No measurements yet. Use the tools above to draw lines and measure angles.</p>
             </div>
+        </div>
+
+        <div class="info-panel" id="instructionsPanel" style="display: none; margin-top: 15px;">
+            <h3>Instructions</h3>
+            <ul style="margin-left: 20px; color: #666;">
+                <li><strong>Draw Line:</strong> Click two points to draw a line</li>
+                <li><strong>Measure Angle:</strong> Click three points (vertex in the middle) to measure an angle</li>
+                <li>Use the slider to navigate through frames or click Play</li>
+                <li>Clear removes all drawings, Undo removes the last one</li>
+            </ul>
         </div>
     </div>
 
@@ -231,12 +441,18 @@
         const ctx = canvas.getContext('2d');
         const frameSlider = document.getElementById('frameSlider');
         const canvasContainer = document.getElementById('canvasContainer');
+        const videoWrapper = document.getElementById('videoWrapper');
         const controls = document.getElementById('controls');
         const frameInfo = document.getElementById('frameInfo');
         const measurementsDiv = document.getElementById('measurements');
         const loadingMessage = document.getElementById('loadingMessage');
         const playBtn = document.getElementById('playBtn');
         const pauseBtn = document.getElementById('pauseBtn');
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+        const toolWidgetToggle = document.getElementById('toolWidgetToggle');
+        const toolWidget = document.querySelector('.tool-widget');
+        const infoPanel = document.getElementById('infoPanel');
+        const instructionsPanel = document.getElementById('instructionsPanel');
 
         let currentTool = null;
         let points = [];
@@ -284,6 +500,73 @@
             playBtn.style.display = 'inline-block';
         });
 
+        // Fullscreen functionality
+        fullscreenBtn.addEventListener('click', () => {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement && 
+                !document.mozFullScreenElement && !document.msFullscreenElement) {
+                // Enter fullscreen
+                if (videoWrapper.requestFullscreen) {
+                    videoWrapper.requestFullscreen();
+                } else if (videoWrapper.webkitRequestFullscreen) {
+                    videoWrapper.webkitRequestFullscreen();
+                } else if (videoWrapper.mozRequestFullScreen) {
+                    videoWrapper.mozRequestFullScreen();
+                } else if (videoWrapper.msRequestFullscreen) {
+                    videoWrapper.msRequestFullscreen();
+                }
+            } else {
+                // Exit fullscreen
+                if (document.exitFullscreen) {
+                    document.exitFullscreen();
+                } else if (document.webkitExitFullscreen) {
+                    document.webkitExitFullscreen();
+                } else if (document.mozCancelFullScreen) {
+                    document.mozCancelFullScreen();
+                } else if (document.msExitFullscreen) {
+                    document.msExitFullscreen();
+                }
+            }
+        });
+
+        // Update fullscreen button text and resize canvas when fullscreen changes
+        function handleFullscreenChange() {
+            const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || 
+                                   document.mozFullScreenElement || document.msFullscreenElement);
+            
+            if (isFullscreen) {
+                fullscreenBtn.title = 'Exit Fullscreen';
+            } else {
+                fullscreenBtn.title = 'Fullscreen';
+            }
+            
+            // Resize canvas when entering/exiting fullscreen
+            if (videoLoaded) {
+                setTimeout(() => {
+                    resizeCanvasToFit();
+                    redrawCanvas();
+                }, 100);
+            }
+        }
+
+        document.addEventListener('fullscreenchange', handleFullscreenChange);
+        document.addEventListener('webkitfullscreenchange', handleFullscreenChange);
+        document.addEventListener('mozfullscreenchange', handleFullscreenChange);
+        document.addEventListener('MSFullscreenChange', handleFullscreenChange);
+
+        // Tool widget toggle
+        toolWidgetToggle.addEventListener('click', () => {
+            toolWidget.classList.toggle('active');
+        });
+
+        // Close tool widget when clicking outside
+        document.addEventListener('click', (e) => {
+            if (toolWidget.classList.contains('active') && 
+                !toolWidget.contains(e.target) && 
+                e.target !== toolWidgetToggle) {
+                toolWidget.classList.remove('active');
+            }
+        });
+
         function setTool(tool) {
             currentTool = tool;
             points = [];
@@ -312,8 +595,13 @@
                 
                 hiddenVideo.onloadedmetadata = () => {
                     console.log('Video metadata loaded');
+                    // Set canvas internal resolution to match video
                     canvas.width = hiddenVideo.videoWidth;
                     canvas.height = hiddenVideo.videoHeight;
+                    
+                    // Calculate display size to fit viewport while maintaining aspect ratio
+                    resizeCanvasToFit();
+                    
                     frameSlider.max = hiddenVideo.duration;
                     hiddenVideo.currentTime = 0;
                 };
@@ -321,9 +609,12 @@
                 hiddenVideo.onloadeddata = () => {
                     console.log('Video data loaded');
                     loadingMessage.style.display = 'none';
-                    canvasContainer.style.display = 'block';
+                    videoWrapper.style.display = 'block';
                     controls.style.display = 'block';
+                    infoPanel.style.display = 'block';
+                    instructionsPanel.style.display = 'block';
                     videoLoaded = true;
+                    resizeCanvasToFit();
                     redrawCanvas();
                 };
 
@@ -362,6 +653,45 @@
 
         hiddenVideo.addEventListener('seeked', () => {
             redrawCanvas();
+        });
+
+        function resizeCanvasToFit() {
+            if (!hiddenVideo.videoWidth || !hiddenVideo.videoHeight) return;
+            
+            const container = canvasContainer;
+            const containerWidth = container.clientWidth;
+            // Check if in fullscreen mode
+            const isFullscreen = !!(document.fullscreenElement || document.webkitFullscreenElement || 
+                                   document.mozFullScreenElement || document.msFullscreenElement);
+            // Account for header, padding, and controls overlay (less space needed in fullscreen)
+            const containerHeight = isFullscreen ? window.innerHeight - 150 : Math.max(300, window.innerHeight - 300);
+            
+            const videoAspect = hiddenVideo.videoWidth / hiddenVideo.videoHeight;
+            const containerAspect = containerWidth / containerHeight;
+            
+            let displayWidth, displayHeight;
+            
+            if (containerAspect > videoAspect) {
+                // Container is wider - fit to height
+                displayHeight = containerHeight;
+                displayWidth = displayHeight * videoAspect;
+            } else {
+                // Container is taller - fit to width
+                displayWidth = containerWidth;
+                displayHeight = displayWidth / videoAspect;
+            }
+            
+            // Set the display size (CSS size)
+            canvas.style.width = displayWidth + 'px';
+            canvas.style.height = displayHeight + 'px';
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (videoLoaded) {
+                resizeCanvasToFit();
+                redrawCanvas();
+            }
         });
 
         function updateFrameInfo() {
