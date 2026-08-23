@@ -101,4 +101,19 @@ export function drawGolfFrontalOverlay(
     16,
     height - 36,
   );
+
+  const club = metrics.clubHead;
+  if (club) {
+    solid(ctx, club.gripX, club.gripY, club.x, club.y, '#f8fafc', 2);
+    ctx.save();
+    ctx.fillStyle = club.method === 'image' ? '#facc15' : 'rgba(250, 204, 21, 0.45)';
+    ctx.strokeStyle = '#111827';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(club.x, club.y, 9, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+    chip(ctx, club.method === 'image' ? 'Club head' : 'Club (prior)', club.x + 12, club.y - 4);
+  }
 }

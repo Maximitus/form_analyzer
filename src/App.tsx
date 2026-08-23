@@ -75,7 +75,7 @@ export default function App() {
   const onPose = useCallback(
     (pose: PoseFrame) => {
       if (module !== 'golf') return;
-      const next = golfSessionRef.current.update(pose.keypoints);
+      const next = golfSessionRef.current.update(pose.keypoints, pose.clubHead, pose.mediaTime);
       golfMetricsRef.current = next;
       setGolfMetrics(next);
     },
@@ -157,6 +157,8 @@ export default function App() {
           onPose={onPose}
           onStatus={setStatus}
           drawOverlay={drawOverlay}
+          trackClubHead={module === 'golf'}
+          leadIsLeft={handedness === 'right'}
         />
 
         <div className="panels">
@@ -169,8 +171,12 @@ export default function App() {
                   Camera on the target line, looking at the sternum — golf <em>face-on</em>, PT{' '}
                   <em>frontal plane</em>.
                 </li>
-                <li>White dashed line is the ankle midline. Cyan = shoulders, gold = pelvis.</li>
+                <li>White dashed line is the ankle midline. Cyan = shoulders, gold = pelvis. Yellow = club head.</li>
                 <li>Hold setup for a moment so address can calibrate sway.</li>
+                <li>
+                  Club head is tracked along the shaft from the trail hand — not a COCO keypoint. Expect dropouts
+                  on a blurred downswing; address is the reliable lock.
+                </li>
                 <li>Side-on / down-the-line (sagittal) is a different module — this one will not see early extension well.</li>
               </ul>
             ) : (

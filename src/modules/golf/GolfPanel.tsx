@@ -66,6 +66,26 @@ const METRIC_ROWS: Array<{
     label: 'Knee window',
     format: (m) => (m.kneeWindowRatio === null ? '—' : `${(m.kneeWindowRatio * 100).toFixed(0)}% of stance`),
   },
+  {
+    key: 'clubHead',
+    label: 'Club head',
+    format: (m) => {
+      if (!m.clubHead) return '—';
+      const src = m.clubHead.method === 'image' ? 'tracked' : 'shaft prior';
+      return `${m.clubHead.x.toFixed(0)}, ${m.clubHead.y.toFixed(0)} (${src})`;
+    },
+  },
+  {
+    key: 'clubHeadTowardLeadPct',
+    label: 'Club vs midline',
+    format: (m) =>
+      m.clubHeadTowardLeadPct === null ? '—' : `${m.clubHeadTowardLeadPct.toFixed(0)}% stance toward lead`,
+  },
+  {
+    key: 'clubHeadSpeedPxPerSec',
+    label: 'Club speed (image)',
+    format: (m) => (m.clubHeadSpeedPxPerSec === null ? '—' : `${m.clubHeadSpeedPxPerSec.toFixed(0)} px/s`),
+  },
 ];
 
 export function GolfPanel({ metrics }: GolfPanelProps) {
@@ -75,7 +95,8 @@ export function GolfPanel({ metrics }: GolfPanelProps) {
       <p className="muted plane-note">
         Camera is in front of the player. In PT that is the <strong>frontal (coronal) plane</strong>,
         anterior view. Golf coaches usually say <strong>face-on</strong>. Side-on is sagittal;
-        down-the-line is closer to that.
+        down-the-line is closer to that. Club head is a second-stage search along the
+        shaft — RTMPose only outputs body keypoints.
       </p>
       {!metrics ? (
         <p className="muted">Waiting for RTMPose keypoints…</p>

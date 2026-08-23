@@ -114,6 +114,15 @@ export function buildGolfCues(
     }
   }
 
+  if (metrics.clubHead?.method === 'prior') {
+    cues.push({
+      id: 'club-prior',
+      level: 'info',
+      title: 'Club head from shaft length',
+      detail: 'No clear head blob — using a wrist-to-length prior. Address and slow motion lock better than a blurred downswing.',
+    });
+  }
+
   if (cues.length === 0) {
     cues.push({
       id: 'ok',

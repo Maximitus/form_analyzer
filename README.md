@@ -89,12 +89,19 @@ pelvic lines, and reports tilt, lateral trunk flexion, head/hip sway, knee
 window, and a coarse swing-phase hint. Side-on analysis is sagittal (golf
 *down-the-line* is closer to that) and is not this module.
 
+Club head is **not** an RTMPose keypoint. In golf mode the worker runs a second
+stage on the same frame: estimate shaft direction from lead→trail wrists, search
+along that ray for a high-contrast distal blob, and fall back to a body-height
+shaft prior when the head is lost (typical on a blurred downswing).
+
 ## Layout
 
 ```
 src/
   components/PoseTracker.tsx   # rVFC loop, single-canvas compositing
-  workers/rtmpose.worker.ts    # ORT session, preprocess, SimCC decode
+  workers/rtmpose.worker.ts    # ORT session, SimCC decode, club-head search
+  utils/clubHead.ts            # shaft prior + image search
+  modules/golf/                # face-on frontal metrics and overlay
   utils/simcc.ts               # SimCC postprocess
   utils/oneEuroFilter.ts       # 1€ filter
   utils/kinematics.ts          # clinical 2D angles

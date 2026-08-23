@@ -1,4 +1,5 @@
-import type { Keypoint2D } from '../../types/pose';
+import type { ClubHeadEstimate, Keypoint2D } from '../../types/pose';
+import { OneEuroFilter } from '../../utils/oneEuroFilter';
 import { computeGolfFrontalMetrics } from './metrics';
 import { inferGolfPhase } from './phase';
 import type { GolfAddressBaseline, GolfFrontalMetrics, GolfHandedness, GolfPhase } from './types';
@@ -12,6 +13,9 @@ export class GolfSession {
   private peakWristElevation = 0;
   private prevWristElevation: number | null = null;
   private phase: GolfPhase = 'unknown';
+  private readonly clubX = new OneEuroFilter({ minCutoff: 1.2, beta: 0.4, dCutoff: 1 });
+  private readonly clubY = new OneEuroFilter({ minCutoff: 1.2, beta: 0.4, dCutoff: 1 });
+  private prevClub: { x: number; y: number; t: number } | null = null;
 
   constructor(handedness: GolfHandedness = 'right') {
     this.handedness = handedness;
@@ -29,9 +33,16 @@ export class GolfSession {
     this.peakWristElevation = 0;
     this.prevWristElevation = null;
     this.phase = 'unknown';
+    this.clubX.reset();
+    this.clubY.reset();
+    this.prevClub = null;
   }
 
-  update(keypoints: readonly Keypoint2D[]): GolfFrontalMetrics {
+  update(
+    keypoints: readonly Keypoint2D[],
+    rawClub: ClubHeadEstimate | undefined,
+    mediaTime: number,
+  ): GolfFrontalMetrics {
     const snapshot = computeGolfFrontalMetrics(keypoints, this.handedness, this.phase, this.address);
 
     if (snapshot.wristElevation !== null && snapshot.wristElevation > this.peakWristElevation) {
@@ -57,7 +68,37 @@ export class GolfSession {
       this.addressHold = 0;
     }
 
-    return computeGolfFrontalMetrics(keypoints, this.handedness, this.phase, this.address);
+    const { clubHead, speed } = this.smoothClub(rawClub, mediaTime);
+
+    return computeGolfFrontalMetrics(keypoints, this.handedness, this.phase, this.address, {
+      clubHead,
+      clubHeadSpeedPxPerSec: speed,
+    });
+  }
+
+  private smoothClub(
+    rawClub: ClubHeadEstimate | undefined,
+    mediaTime: number,
+  ): { clubHead: ClubHeadEstimate | null; speed: number | null } {
+    if (!rawClub || rawClub.score < 0.12) {
+      return { clubHead: null, speed: null };
+    }
+
+    const t = mediaTime > 0 ? mediaTime : performance.now() / 1000;
+    const x = this.clubX.filter(rawClub.x, t);
+    const y = this.clubY.filter(rawClub.y, t);
+    let speed: number | null = null;
+    if (this.prevClub) {
+      const dt = t - this.prevClub.t;
+      if (dt > 1e-3) {
+        speed = Math.hypot(x - this.prevClub.x, y - this.prevClub.y) / dt;
+      }
+    }
+    this.prevClub = { x, y, t };
+    return {
+      clubHead: { ...rawClub, x, y },
+      speed,
+    };
   }
 
   private looksLikeAddress(metrics: GolfFrontalMetrics): boolean {

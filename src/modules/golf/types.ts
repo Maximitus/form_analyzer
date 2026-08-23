@@ -1,4 +1,4 @@
-import type { Keypoint2D } from '../../types/pose';
+import type { ClubHeadEstimate, Keypoint2D } from '../../types/pose';
 
 /** Golf coaching: face-on. PT/biomechanics: frontal (coronal) plane, anterior view. */
 export const GOLF_VIEW_PLANE = 'frontal' as const;
@@ -65,6 +65,9 @@ export interface GolfFrontalMetrics {
   headSwayTowardLeadPct: number | null;
   hipSwayTowardLeadPct: number | null;
   wristElevation: number | null;
+  clubHead: ClubHeadEstimate | null;
+  clubHeadTowardLeadPct: number | null;
+  clubHeadSpeedPxPerSec: number | null;
   landmarks: {
     midShoulder: Keypoint2D | null;
     midHip: Keypoint2D | null;

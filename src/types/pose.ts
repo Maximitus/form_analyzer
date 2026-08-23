@@ -75,6 +75,15 @@ export interface Keypoint2D extends Point2D {
   name: CocoKeypointName;
 }
 
+export interface ClubHeadEstimate {
+  x: number;
+  y: number;
+  score: number;
+  gripX: number;
+  gripY: number;
+  method: 'image' | 'prior';
+}
+
 export interface PoseFrame {
   frameId: number;
   mediaTime: number;
@@ -82,6 +91,7 @@ export interface PoseFrame {
   width: number;
   height: number;
   keypoints: Keypoint2D[];
+  clubHead?: ClubHeadEstimate;
 }
 
 export interface ClinicalAngles {

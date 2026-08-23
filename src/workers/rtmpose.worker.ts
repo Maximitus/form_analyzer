@@ -3,7 +3,9 @@
 import * as ort from 'onnxruntime-web/webgpu';
 import { decodeSimcc, identifySimccOutputs } from '../utils/simcc';
 import { computeLetterbox, mapModelToSource, rgbaToNchwFloat32 } from '../utils/preprocess';
+import { estimateClubHead, landmarksFromCoco } from '../utils/clubHead';
 import { COCO_KEYPOINT_COUNT } from '../types/pose';
+import type { Point2D } from '../types/pose';
 import type { WorkerInboundMessage, WorkerOutboundMessage } from '../pose/protocol';
 
 interface SessionState {
@@ -17,9 +19,16 @@ interface SessionState {
   executionProvider: string;
   canvas: OffscreenCanvas;
   ctx: OffscreenCanvasRenderingContext2D;
+  searchCanvas: OffscreenCanvas;
+  searchCtx: OffscreenCanvasRenderingContext2D;
+  prevClub: { x: number; y: number } | null;
 }
 
 let state: SessionState | null = null;
+
+function scalePoint(point: Point2D | null, scale: number): Point2D | null {
+  return point ? { x: point.x * scale, y: point.y * scale } : null;
+}
 
 function post(message: WorkerOutboundMessage, transfer?: Transferable[]): void {
   if (transfer && transfer.length > 0) {
@@ -135,6 +144,11 @@ async function init(message: Extract<WorkerInboundMessage, { type: 'init' }>): P
   if (!ctx) {
     throw new Error('OffscreenCanvas 2D context is unavailable');
   }
+  const searchCanvas = new OffscreenCanvas(384, 384);
+  const searchCtx = searchCanvas.getContext('2d', { willReadFrequently: true });
+  if (!searchCtx) {
+    throw new Error('Club-search OffscreenCanvas 2D context is unavailable');
+  }
 
   state = {
     session,
@@ -147,6 +161,9 @@ async function init(message: Extract<WorkerInboundMessage, { type: 'init' }>): P
     executionProvider,
     canvas,
     ctx,
+    searchCanvas,
+    searchCtx,
+    prevClub: null,
   };
 
   post({
@@ -182,6 +199,20 @@ async function inferFrame(
     srcWidth * meta.scale,
     srcHeight * meta.scale,
   );
+
+  let searchScale = 1;
+  let searchPixels: ImageData | null = null;
+  if (message.trackClubHead) {
+    searchScale = Math.min(1, 384 / srcWidth, 384 / srcHeight);
+    const sw = Math.max(1, Math.round(srcWidth * searchScale));
+    const sh = Math.max(1, Math.round(srcHeight * searchScale));
+    if (state.searchCanvas.width !== sw || state.searchCanvas.height !== sh) {
+      state.searchCanvas.width = sw;
+      state.searchCanvas.height = sh;
+    }
+    state.searchCtx.drawImage(bitmap, 0, 0, sw, sh);
+    searchPixels = state.searchCtx.getImageData(0, 0, sw, sh);
+  }
   bitmap.close();
 
   const imageData = state.ctx.getImageData(0, 0, state.inputWidth, state.inputHeight);
@@ -215,8 +246,47 @@ async function inferFrame(
     scores[i] = decoded.scores[i];
   }
 
+  let clubHead: Float32Array | undefined;
+  if (searchPixels) {
+    const landmarks = landmarksFromCoco(xs, ys, scores, message.leadIsLeft !== false);
+    const searchLandmarks = {
+      leadWrist: scalePoint(landmarks.leadWrist, searchScale),
+      trailWrist: scalePoint(landmarks.trailWrist, searchScale),
+      midHip: scalePoint(landmarks.midHip, searchScale),
+      midShoulder: scalePoint(landmarks.midShoulder, searchScale),
+      head: scalePoint(landmarks.head, searchScale),
+      midAnkle: scalePoint(landmarks.midAnkle, searchScale),
+    };
+    const prev = state.prevClub
+      ? { x: state.prevClub.x * searchScale, y: state.prevClub.y * searchScale }
+      : null;
+    const found = estimateClubHead(
+      searchPixels.data,
+      searchPixels.width,
+      searchPixels.height,
+      searchLandmarks,
+      prev,
+    );
+    if (found) {
+      const x = found.x / searchScale;
+      const y = found.y / searchScale;
+      state.prevClub = { x, y };
+      clubHead = Float32Array.from([
+        x,
+        y,
+        found.score,
+        found.gripX / searchScale,
+        found.gripY / searchScale,
+        found.method === 'image' ? 1 : 0,
+      ]);
+    }
+  }
+
   const t1 =
     typeof performance !== 'undefined' && performance.now ? performance.now() : Date.now();
+
+  const transfer: Transferable[] = [xs.buffer, ys.buffer, scores.buffer];
+  if (clubHead) transfer.push(clubHead.buffer);
 
   post(
     {
@@ -229,14 +299,16 @@ async function inferFrame(
       xs,
       ys,
       scores,
+      clubHead,
     },
-    [xs.buffer, ys.buffer, scores.buffer],
+    transfer,
   );
 }
 
 async function dispose(): Promise<void> {
   if (state) {
     await state.session.release();
+    state.prevClub = null;
     state = null;
   }
 }

@@ -13,6 +13,8 @@ export type WorkerInboundMessage =
       frameId: number;
       mediaTime: number;
       bitmap: ImageBitmap;
+      trackClubHead?: boolean;
+      leadIsLeft?: boolean;
     }
   | {
       type: 'dispose';
@@ -36,6 +38,7 @@ export type WorkerOutboundMessage =
       xs: Float32Array;
       ys: Float32Array;
       scores: Float32Array;
+      clubHead?: Float32Array;
     }
   | {
       type: 'error';

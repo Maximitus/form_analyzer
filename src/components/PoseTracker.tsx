@@ -15,6 +15,8 @@ export interface PoseTrackerProps {
   onPose?: (pose: PoseFrame) => void;
   onStatus?: (status: string) => void;
   drawOverlay?: (ctx: CanvasRenderingContext2D, pose: PoseFrame) => void;
+  trackClubHead?: boolean;
+  leadIsLeft?: boolean;
 }
 
 type VideoFrameCallback = (
@@ -44,6 +46,8 @@ export function PoseTracker({
   onPose,
   onStatus,
   drawOverlay,
+  trackClubHead = false,
+  leadIsLeft = true,
 }: PoseTrackerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -59,10 +63,14 @@ export function PoseTracker({
   const onAnglesRef = useRef(onAngles);
   const onStatusRef = useRef(onStatus);
   const drawOverlayRef = useRef(drawOverlay);
+  const trackClubHeadRef = useRef(trackClubHead);
+  const leadIsLeftRef = useRef(leadIsLeft);
   onPoseRef.current = onPose;
   onAnglesRef.current = onAngles;
   onStatusRef.current = onStatus;
   drawOverlayRef.current = drawOverlay;
+  trackClubHeadRef.current = trackClubHead;
+  leadIsLeftRef.current = leadIsLeft;
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -113,7 +121,10 @@ export function PoseTracker({
           bitmap.close();
           return;
         }
-        clientRef.current.submitFrame(bitmap, mediaTime);
+        clientRef.current.submitFrame(bitmap, mediaTime, {
+          trackClubHead: trackClubHeadRef.current,
+          leadIsLeft: leadIsLeftRef.current,
+        });
       })
       .catch(() => undefined)
       .finally(() => {

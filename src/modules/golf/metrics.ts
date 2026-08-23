@@ -1,4 +1,4 @@
-import { COCO_INDEX, type Keypoint2D } from '../../types/pose';
+import { COCO_INDEX, type ClubHeadEstimate, type Keypoint2D } from '../../types/pose';
 import {
   jointAngleDeg,
   leanFromVerticalDeg,
@@ -55,6 +55,10 @@ export function computeGolfFrontalMetrics(
   handedness: GolfHandedness,
   phase: GolfPhase,
   address: GolfAddressBaseline | null,
+  extras: {
+    clubHead?: ClubHeadEstimate | null;
+    clubHeadSpeedPxPerSec?: number | null;
+  } = {},
 ): GolfFrontalMetrics {
   const L = COCO_INDEX;
   const leadSide = leadSideFor(handedness);
@@ -118,6 +122,12 @@ export function computeGolfFrontalMetrics(
       ? jointAngleDeg(shoulders.right, rightElbow, wrists.right)
       : jointAngleDeg(shoulders.left, leftElbow, wrists.left);
 
+  const clubHead = extras.clubHead ?? null;
+  const clubHeadTowardLeadPct =
+    clubHead && originX !== null && leadAnkle && trailAnkle && widthForSway
+      ? towardLeadPct(clubHead.x, originX, leadAnkle.x, trailAnkle.x, widthForSway)
+      : null;
+
   const metrics: GolfFrontalMetrics = {
     view: GOLF_VIEW_PLANE,
     viewLabel: GOLF_VIEW_LABEL,
@@ -140,6 +150,9 @@ export function computeGolfFrontalMetrics(
     headSwayTowardLeadPct,
     hipSwayTowardLeadPct,
     wristElevation,
+    clubHead,
+    clubHeadTowardLeadPct,
+    clubHeadSpeedPxPerSec: extras.clubHeadSpeedPxPerSec ?? null,
     landmarks: {
       midShoulder: shoulders.mid,
       midHip: hips.mid,

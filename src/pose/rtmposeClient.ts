@@ -1,5 +1,5 @@
 import { COCO_KEYPOINT_COUNT, COCO_KEYPOINT_NAMES, RTMPOSE_MODELS } from '../types/pose';
-import type { Keypoint2D, PoseFrame, RtmposeVariant } from '../types/pose';
+import type { ClubHeadEstimate, Keypoint2D, PoseFrame, RtmposeVariant } from '../types/pose';
 import type { WorkerInboundMessage, WorkerOutboundMessage } from './protocol';
 
 export interface RtmposeClientOptions {
@@ -53,6 +53,17 @@ export class RtmposeClient {
             name: COCO_KEYPOINT_NAMES[i],
           });
         }
+        let clubHead: ClubHeadEstimate | undefined;
+        if (message.clubHead && message.clubHead.length >= 6) {
+          clubHead = {
+            x: message.clubHead[0],
+            y: message.clubHead[1],
+            score: message.clubHead[2],
+            gripX: message.clubHead[3],
+            gripY: message.clubHead[4],
+            method: message.clubHead[5] >= 0.5 ? 'image' : 'prior',
+          };
+        }
         this.options.onPose?.({
           frameId: message.frameId,
           mediaTime: message.mediaTime,
@@ -60,6 +71,7 @@ export class RtmposeClient {
           width: message.width,
           height: message.height,
           keypoints,
+          clubHead,
         });
         return;
       }
@@ -103,7 +115,11 @@ export class RtmposeClient {
    * Transfer an ImageBitmap frame to the worker. Returns false if the worker
    * is still inferring the previous frame (backpressure).
    */
-  submitFrame(bitmap: ImageBitmap, mediaTime: number): boolean {
+  submitFrame(
+    bitmap: ImageBitmap,
+    mediaTime: number,
+    options: { trackClubHead?: boolean; leadIsLeft?: boolean } = {},
+  ): boolean {
     if (!this.worker || this.busy) {
       bitmap.close();
       return false;
@@ -115,6 +131,8 @@ export class RtmposeClient {
       frameId,
       mediaTime,
       bitmap,
+      trackClubHead: options.trackClubHead,
+      leadIsLeft: options.leadIsLeft,
     };
     this.worker.postMessage(message, [bitmap]);
     return true;
