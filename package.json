@@ -6,12 +6,13 @@
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
     "build": "vite build",
-    "preview": "vite preview",
+    "preview": "npm run build && wrangler dev",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "postinstall": "node scripts/copy-ort-wasm.mjs",
     "download-models": "node scripts/download-models.mjs",
-    "deploy:form-analyzer": "bash scripts/push-golf-to-form-analyzer.sh"
+    "deploy:form-analyzer": "bash scripts/push-golf-to-form-analyzer.sh",
+    "deploy:cloudflare": "bash scripts/deploy-golf-to-cloudflare.sh"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
@@ -27,6 +28,7 @@
     "vite": "^6.2.0"
   },
   "devDependencies": {
+    "@cloudflare/vite-plugin": "^1.39.2",
     "@types/express": "^4.17.21",
     "@types/node": "^22.14.0",
     "autoprefixer": "^10.4.21",
@@ -34,6 +36,7 @@
     "tsx": "^4.21.0",
     "typescript": "~5.8.2",
     "vite": "^6.2.0",
-    "vite-plugin-static-copy": "^2.3.1"
+    "vite-plugin-static-copy": "^2.3.1",
+    "wrangler": "^4.97.0"
   }
 }

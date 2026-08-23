@@ -39,4 +39,6 @@ git -c user.name='Maxwell Nelson' \
     commit -m "Add Golf mode and replace BlazePose with RTMPose"
 
 git push origin HEAD:main
+# Cloudflare also keeps wrangler on cloudflare/workers-autoconfig.
+git push origin HEAD:cloudflare/workers-autoconfig || true
 echo "Pushed to Maximitus/Form-Analyzer main."

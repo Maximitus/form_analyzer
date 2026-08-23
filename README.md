@@ -14,6 +14,12 @@ Cloudflare Workers/Pages project name: **`form-analyzer`**. It is connected to *
 
 To put Golf + RTMPose on the live site, push this snapshot to **`Maximitus/Form-Analyzer` `main`**. Cloudflare project `form-analyzer` rebuilds from that branch.
 
+The live path is the Cloudflare Worker `form-analyzer` (`form-analyzer.maxwellscottnelson.workers.dev`). Either push Git `main` (CF rebuilds) or deploy the Worker:
+
+```bash
+CLOUDFLARE_API_TOKEN=... npm run deploy:cloudflare
+```
+
 With a GitHub token that can write `Form-Analyzer`:
 
 ```bash
