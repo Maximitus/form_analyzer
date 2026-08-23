@@ -1,0 +1,11 @@
+node_modules
+dist
+dist-ssr
+*.local
+.DS_Store
+.vite
+coverage
+public/ort/*
+!public/ort/.gitkeep
+public/models/*.onnx
+public/models/*.zip
