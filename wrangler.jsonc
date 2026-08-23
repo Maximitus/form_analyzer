@@ -1,6 +1,7 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "form-analyzer",
+  "account_id": "122defb9863290b1eb2067a0fb0920e6",
   "compatibility_date": "2026-06-03",
   "observability": {
     "enabled": true

@@ -23,13 +23,15 @@ export default defineConfig(({mode}) => {
       tailwindcss(),
       cloudflare(),
       viteStaticCopy({
+        // Skip JSEP/asyncify/jspi WASM: JSEP is 25.6 MiB and Cloudflare Workers
+        // rejects assets over 25 MiB (this is what failed Workers Builds).
         targets: [
           {
-            src: path.join(ortDist, 'ort-wasm*.wasm'),
+            src: path.join(ortDist, 'ort-wasm-simd-threaded.wasm'),
             dest: 'ort',
           },
           {
-            src: path.join(ortDist, 'ort-wasm*.mjs'),
+            src: path.join(ortDist, 'ort-wasm-simd-threaded.mjs'),
             dest: 'ort',
           },
         ],

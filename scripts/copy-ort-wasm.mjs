@@ -9,15 +9,24 @@ const destDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../p
 
 fs.mkdirSync(destDir, { recursive: true });
 
-const files = fs.readdirSync(distDir).filter((name) => /^ort-wasm.*\.(wasm|mjs)$/.test(name));
+// Cloudflare Workers rejects assets over 25 MiB. The WebGPU JSEP wasm is 25.6 MiB.
+const MAX_ASSET_BYTES = 25 * 1024 * 1024;
+const files = fs.readdirSync(distDir).filter((name) => {
+  if (!/^ort-wasm-simd-threaded\.(mjs|wasm)$/.test(name)) return false;
+  return fs.statSync(path.join(distDir, name)).size < MAX_ASSET_BYTES;
+});
 
 if (files.length === 0) {
-  console.warn(`[copy-ort-wasm] no ort-wasm binaries found in ${distDir}`);
+  console.warn(`[copy-ort-wasm] no deployable ort-wasm binaries found in ${distDir}`);
   process.exit(0);
+}
+
+for (const file of fs.readdirSync(destDir)) {
+  if (/^ort-wasm/.test(file)) fs.unlinkSync(path.join(destDir, file));
 }
 
 for (const file of files) {
   fs.copyFileSync(path.join(distDir, file), path.join(destDir, file));
 }
 
-console.log(`[copy-ort-wasm] copied ${files.length} files to public/ort`);
+console.log(`[copy-ort-wasm] copied ${files.join(', ')} to public/ort`);
