@@ -10,7 +10,7 @@ View your app in AI Studio: https://ai.studio/apps/9058c3aa-868d-488b-b143-ce430
 
 Analysis modes: **Stride**, **Squat**, and **Golf**. Golf supports face-on (frontal / anterior) and down-the-line (sagittal) camera views, plus a wrist-guided club-head search (pose models only output body landmarks).
 
-Cloudflare for `maxmvs.com/formanalyzer/` should watch **this** repo (`Maximitus/Form-Analyzer`) `main`. Commits to `Maximitus/form_analyzer` (underscore) do not update the live app.
+Cloudflare Workers/Pages project name: **`form-analyzer`**. It is connected to **`Maximitus/Form-Analyzer` `main`** (a bot commit on `cloudflare/workers-autoconfig` only added `wrangler.jsonc`). Commits to `Maximitus/form_analyzer` (underscore) do not update https://maxmvs.com/formanalyzer/.
 
 ## Run Locally
 
