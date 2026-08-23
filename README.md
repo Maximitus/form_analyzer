@@ -12,7 +12,15 @@ Analysis modes: **Stride**, **Squat**, and **Golf**. Golf supports face-on (fron
 
 Cloudflare Workers/Pages project name: **`form-analyzer`**. It is connected to **`Maximitus/Form-Analyzer` `main`** (a bot commit on `cloudflare/workers-autoconfig` only added `wrangler.jsonc`). Commits to `Maximitus/form_analyzer` (underscore) do not update https://maxmvs.com/formanalyzer/.
 
-To put Golf + RTMPose on the live site, copy this branch onto **`Maximitus/Form-Analyzer` `main`** and push:
+To put Golf + RTMPose on the live site, push this snapshot to **`Maximitus/Form-Analyzer` `main`**. Cloudflare project `form-analyzer` rebuilds from that branch.
+
+With a GitHub token that can write `Form-Analyzer`:
+
+```bash
+GITHUB_TOKEN=... npm run deploy:form-analyzer
+```
+
+Or copy the tree by hand:
 
 ```bash
 git clone https://github.com/Maximitus/Form-Analyzer.git
