@@ -10,7 +10,8 @@
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
     "postinstall": "node scripts/copy-ort-wasm.mjs",
-    "download-models": "node scripts/download-models.mjs"
+    "download-models": "node scripts/download-models.mjs",
+    "deploy:form-analyzer": "bash scripts/push-golf-to-form-analyzer.sh"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",
