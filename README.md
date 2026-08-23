@@ -79,6 +79,16 @@ use `SharedArrayBuffer` when the browser allows it.
    trunk angles (dot product, clamped to `[0°, 180°]`), and paints the matching
    video frame plus overlay onto **one** canvas (`ctx.drawImage` then skeleton).
 
+## Golf module (face-on / frontal plane)
+
+Camera in front of the player is the **frontal (coronal) plane** in PT —
+specifically an **anterior** view. Golf coaches call the same setup **face-on**.
+
+The golf module (`src/modules/golf/`) overlays a frontal midline, shoulder and
+pelvic lines, and reports tilt, lateral trunk flexion, head/hip sway, knee
+window, and a coarse swing-phase hint. Side-on analysis is sagittal (golf
+*down-the-line* is closer to that) and is not this module.
+
 ## Layout
 
 ```

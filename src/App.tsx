@@ -1,16 +1,31 @@
-import { useCallback, useEffect, useState, type ChangeEventHandler } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEventHandler } from 'react';
 import { PoseTracker } from './components/PoseTracker';
 import { AnglePanel } from './components/AnglePanel';
-import type { ClinicalAngles, RtmposeVariant } from './types/pose';
+import {
+  drawGolfFrontalOverlay,
+  GolfPanel,
+  GolfSession,
+  type GolfFrontalMetrics,
+  type GolfHandedness,
+} from './modules/golf';
+import type { ClinicalAngles, PoseFrame, RtmposeVariant } from './types/pose';
 import './App.css';
+
+type AnalysisModule = 'clinical' | 'golf';
 
 export default function App() {
   const [videoFile, setVideoFile] = useState<File | null>(null);
   const [stream, setStream] = useState<MediaStream | null>(null);
   const [angles, setAngles] = useState<ClinicalAngles | null>(null);
+  const [golfMetrics, setGolfMetrics] = useState<GolfFrontalMetrics | null>(null);
   const [variant, setVariant] = useState<RtmposeVariant>('s');
+  const [module, setModule] = useState<AnalysisModule>('golf');
+  const [handedness, setHandedness] = useState<GolfHandedness>('right');
   const [status, setStatus] = useState('Idle');
   const [error, setError] = useState<string | null>(null);
+
+  const golfSessionRef = useRef(new GolfSession('right'));
+  const golfMetricsRef = useRef<GolfFrontalMetrics | null>(null);
 
   const stopStream = useCallback(() => {
     setStream((current) => {
@@ -20,6 +35,18 @@ export default function App() {
   }, []);
 
   useEffect(() => () => stopStream(), [stopStream]);
+
+  useEffect(() => {
+    golfSessionRef.current.setHandedness(handedness);
+    setGolfMetrics(null);
+    golfMetricsRef.current = null;
+  }, [handedness]);
+
+  useEffect(() => {
+    golfSessionRef.current.reset();
+    setGolfMetrics(null);
+    golfMetricsRef.current = null;
+  }, [videoFile, stream, module]);
 
   const onUpload: ChangeEventHandler<HTMLInputElement> = (event) => {
     const file = event.target.files?.[0] ?? null;
@@ -45,6 +72,24 @@ export default function App() {
     }
   };
 
+  const onPose = useCallback(
+    (pose: PoseFrame) => {
+      if (module !== 'golf') return;
+      const next = golfSessionRef.current.update(pose.keypoints);
+      golfMetricsRef.current = next;
+      setGolfMetrics(next);
+    },
+    [module],
+  );
+
+  const drawOverlay = useCallback(
+    (ctx: CanvasRenderingContext2D, pose: PoseFrame) => {
+      if (module !== 'golf') return;
+      drawGolfFrontalOverlay(ctx, pose.keypoints, golfMetricsRef.current);
+    },
+    [module],
+  );
+
   return (
     <div className="page">
       <div className="container">
@@ -63,6 +108,28 @@ export default function App() {
             Use camera
           </button>
           <label className="model-picker">
+            Module
+            <select
+              value={module}
+              onChange={(event) => setModule(event.target.value as AnalysisModule)}
+            >
+              <option value="golf">Golf · face-on (frontal)</option>
+              <option value="clinical">General PT angles</option>
+            </select>
+          </label>
+          {module === 'golf' && (
+            <label className="model-picker">
+              Handedness
+              <select
+                value={handedness}
+                onChange={(event) => setHandedness(event.target.value as GolfHandedness)}
+              >
+                <option value="right">Right-handed</option>
+                <option value="left">Left-handed</option>
+              </select>
+            </label>
+          )}
+          <label className="model-picker">
             Model
             <select
               value={variant}
@@ -73,8 +140,9 @@ export default function App() {
             </select>
           </label>
           <p className="hint">
-            Upload a sagittal or frontal clip, or open the camera. Pose runs fully on-device in a
-            Web Worker — no MediaPipe / BlazePose.
+            {module === 'golf'
+              ? 'Film from in front of the player (face-on). That is the frontal / coronal plane in PT — anterior view.'
+              : 'Upload a sagittal or frontal clip, or open the camera. Pose runs fully on-device.'}
           </p>
           {error && <p className="error">{error}</p>}
           <p className="hint status-line">{status}</p>
@@ -84,25 +152,40 @@ export default function App() {
           videoFile={videoFile}
           mediaStream={stream}
           modelVariant={variant}
+          showAngles={module === 'clinical'}
           onAngles={setAngles}
+          onPose={onPose}
           onStatus={setStatus}
+          drawOverlay={drawOverlay}
         />
 
         <div className="panels">
-          <AnglePanel angles={angles} />
+          {module === 'golf' ? <GolfPanel metrics={golfMetrics} /> : <AnglePanel angles={angles} />}
           <div className="info-panel">
-            <h3>How it works</h3>
-            <ul>
-              <li>
-                Each video frame is captured with <code>requestVideoFrameCallback</code> and
-                transferred as an <code>ImageBitmap</code> to the RTMPose worker.
-              </li>
-              <li>
-                The same canvas composites the matching video frame, a One-Euro-smoothed skeleton,
-                and clinical hip / knee / ankle / trunk angles.
-              </li>
-              <li>Inference uses WebGPU when available, with WASM as fallback.</li>
-            </ul>
+            <h3>{module === 'golf' ? 'Face-on checklist' : 'How it works'}</h3>
+            {module === 'golf' ? (
+              <ul>
+                <li>
+                  Camera on the target line, looking at the sternum — golf <em>face-on</em>, PT{' '}
+                  <em>frontal plane</em>.
+                </li>
+                <li>White dashed line is the ankle midline. Cyan = shoulders, gold = pelvis.</li>
+                <li>Hold setup for a moment so address can calibrate sway.</li>
+                <li>Side-on / down-the-line (sagittal) is a different module — this one will not see early extension well.</li>
+              </ul>
+            ) : (
+              <ul>
+                <li>
+                  Each video frame is captured with <code>requestVideoFrameCallback</code> and
+                  transferred as an <code>ImageBitmap</code> to the RTMPose worker.
+                </li>
+                <li>
+                  The same canvas composites the matching video frame, a One-Euro-smoothed skeleton,
+                  and clinical hip / knee / ankle / trunk angles.
+                </li>
+                <li>Inference uses WebGPU when available, with WASM as fallback.</li>
+              </ul>
+            )}
           </div>
         </div>
       </div>

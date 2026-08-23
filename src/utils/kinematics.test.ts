@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { computeClinicalAngles, jointAngleDeg } from '../utils/kinematics';
+import { computeClinicalAngles, jointAngleDeg, leanFromVerticalDeg, tiltFromHorizontalDeg } from '../utils/kinematics';
 import { COCO_KEYPOINT_NAMES } from '../types/pose';
 import type { Keypoint2D } from '../types/pose';
 
@@ -49,5 +49,21 @@ describe('computeClinicalAngles', () => {
     const angles = computeClinicalAngles(points);
     expect(angles.leftKnee).toBeNull();
     expect(angles.trunk).toBeNull();
+  });
+});
+
+describe('girdle tilt and trunk lean', () => {
+  it('returns 0° tilt for a level girdle, including face-on (left.x > right.x)', () => {
+    expect(tiltFromHorizontalDeg({ x: 10, y: 40 }, { x: 50, y: 40 })).toBeCloseTo(0, 5);
+    expect(tiltFromHorizontalDeg({ x: 80, y: 40 }, { x: 20, y: 40 })).toBeCloseTo(0, 5);
+  });
+
+  it('returns positive tilt when the left landmark is higher', () => {
+    const tilt = tiltFromHorizontalDeg({ x: 80, y: 10 }, { x: 20, y: 20 });
+    expect(tilt).toBeGreaterThan(0);
+  });
+
+  it('returns 0° lean for a vertical trunk', () => {
+    expect(leanFromVerticalDeg({ x: 40, y: 10 }, { x: 40, y: 80 })).toBeCloseTo(0, 5);
   });
 });

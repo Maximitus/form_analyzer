@@ -42,11 +42,11 @@ export function jointAngleDeg(
   return Math.min(ANGLE_MAX, Math.max(ANGLE_MIN, deg));
 }
 
-function midpoint(a: Point2D, b: Point2D): Point2D {
+export function midpoint(a: Point2D, b: Point2D): Point2D {
   return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
 }
 
-function scored(
+export function scoredKeypoint(
   keypoints: readonly Keypoint2D[],
   index: number,
   minScore: number,
@@ -70,14 +70,14 @@ export function computeClinicalAngles(
 ): ClinicalAngles {
   const L = COCO_INDEX;
 
-  const leftShoulder = scored(keypoints, L.leftShoulder, minScore);
-  const rightShoulder = scored(keypoints, L.rightShoulder, minScore);
-  const leftHip = scored(keypoints, L.leftHip, minScore);
-  const rightHip = scored(keypoints, L.rightHip, minScore);
-  const leftKnee = scored(keypoints, L.leftKnee, minScore);
-  const rightKnee = scored(keypoints, L.rightKnee, minScore);
-  const leftAnkle = scored(keypoints, L.leftAnkle, minScore);
-  const rightAnkle = scored(keypoints, L.rightAnkle, minScore);
+  const leftShoulder = scoredKeypoint(keypoints, L.leftShoulder, minScore);
+  const rightShoulder = scoredKeypoint(keypoints, L.rightShoulder, minScore);
+  const leftHip = scoredKeypoint(keypoints, L.leftHip, minScore);
+  const rightHip = scoredKeypoint(keypoints, L.rightHip, minScore);
+  const leftKnee = scoredKeypoint(keypoints, L.leftKnee, minScore);
+  const rightKnee = scoredKeypoint(keypoints, L.rightKnee, minScore);
+  const leftAnkle = scoredKeypoint(keypoints, L.leftAnkle, minScore);
+  const rightAnkle = scoredKeypoint(keypoints, L.rightAnkle, minScore);
 
   const ankleVertical = (ankle: Keypoint2D): Point2D => ({
     x: ankle.x,
@@ -111,4 +111,45 @@ export function computeClinicalAngles(
 
 export function formatAngle(value: number | null): string {
   return value === null ? '—' : `${value.toFixed(0)}°`;
+}
+
+export function formatSignedAngle(value: number | null): string {
+  if (value === null) return '—';
+  const rounded = Math.abs(value) < 0.5 ? 0 : value;
+  const sign = rounded > 0 ? '+' : '';
+  return `${sign}${rounded.toFixed(0)}°`;
+}
+
+/**
+ * Signed tilt of the anatomical-left / anatomical-right pair vs horizontal.
+ * Uses |Δx| so facing-the-camera (frontal) and facing-away both work.
+ * Positive = left side higher (smaller y).
+ */
+export function tiltFromHorizontalDeg(
+  left: Point2D | undefined | null,
+  right: Point2D | undefined | null,
+): number | null {
+  if (!isFinitePoint(left) || !isFinitePoint(right)) return null;
+  const dx = Math.abs(right.x - left.x);
+  const dy = right.y - left.y;
+  if (Math.hypot(dx, dy) < 1e-6) return null;
+  const deg = (Math.atan2(dy, dx) * 180) / Math.PI;
+  return Math.min(90, Math.max(-90, deg));
+}
+
+/**
+ * Signed lean of inferior → superior vs upward vertical.
+ * Positive = superior landmark is toward image +x (typically anatomical left
+ * when the athlete faces the camera).
+ */
+export function leanFromVerticalDeg(
+  superior: Point2D | undefined | null,
+  inferior: Point2D | undefined | null,
+): number | null {
+  if (!isFinitePoint(superior) || !isFinitePoint(inferior)) return null;
+  const dx = superior.x - inferior.x;
+  const up = inferior.y - superior.y;
+  if (Math.hypot(dx, up) < 1e-6) return null;
+  const deg = (Math.atan2(dx, up) * 180) / Math.PI;
+  return Math.min(90, Math.max(-90, deg));
 }

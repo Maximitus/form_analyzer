@@ -14,6 +14,7 @@ export interface PoseTrackerProps {
   onAngles?: (angles: ClinicalAngles) => void;
   onPose?: (pose: PoseFrame) => void;
   onStatus?: (status: string) => void;
+  drawOverlay?: (ctx: CanvasRenderingContext2D, pose: PoseFrame) => void;
 }
 
 type VideoFrameCallback = (
@@ -42,6 +43,7 @@ export function PoseTracker({
   onAngles,
   onPose,
   onStatus,
+  drawOverlay,
 }: PoseTrackerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -53,6 +55,14 @@ export function PoseTracker({
   const rvfcHandleRef = useRef<number | null>(null);
   const rafHandleRef = useRef<number | null>(null);
   const submittingRef = useRef(false);
+  const onPoseRef = useRef(onPose);
+  const onAnglesRef = useRef(onAngles);
+  const onStatusRef = useRef(onStatus);
+  const drawOverlayRef = useRef(drawOverlay);
+  onPoseRef.current = onPose;
+  onAnglesRef.current = onAngles;
+  onStatusRef.current = onStatus;
+  drawOverlayRef.current = drawOverlay;
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -62,13 +72,10 @@ export function PoseTracker({
   const [isLive, setIsLive] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
 
-  const setStatus = useCallback(
-    (status: string) => {
-      setEngineStatus(status);
-      onStatus?.(status);
-    },
-    [onStatus],
-  );
+  const setStatus = useCallback((status: string) => {
+    setEngineStatus(status);
+    onStatusRef.current?.(status);
+  }, []);
 
   const compositeFrame = useCallback(() => {
     const video = videoRef.current;
@@ -91,6 +98,7 @@ export function PoseTracker({
       if (showAngles && latestAnglesRef.current) {
         drawJointAngleLabels(ctx, pose.keypoints, latestAnglesRef.current);
       }
+      drawOverlayRef.current?.(ctx, pose);
     }
   }, [showAngles]);
 
@@ -171,8 +179,8 @@ export function PoseTracker({
         latestPoseRef.current = filtered;
         const angles = computeClinicalAngles(keypoints);
         latestAnglesRef.current = angles;
-        onPose?.(filtered);
-        onAngles?.(angles);
+        onPoseRef.current?.(filtered);
+        onAnglesRef.current?.(angles);
         compositeFrame();
       },
     });
@@ -184,7 +192,7 @@ export function PoseTracker({
       client.stop();
       clientRef.current = null;
     };
-  }, [compositeFrame, modelVariant, onAngles, onPose, setStatus]);
+  }, [compositeFrame, modelVariant, setStatus]);
 
   useEffect(() => {
     const video = videoRef.current;

@@ -301,6 +301,42 @@ canvas {
   color: #999;
 }
 
+.plane-note {
+  margin-bottom: 12px;
+  line-height: 1.45;
+}
+
+.cues-heading {
+  margin-top: 16px;
+}
+
+.cue {
+  background: white;
+  padding: 10px;
+  margin: 8px 0;
+  border-radius: 5px;
+  border-left: 4px solid #94a3b8;
+}
+
+.cue p {
+  color: #475569;
+  margin-top: 4px;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.cue-info {
+  border-left-color: #667eea;
+}
+
+.cue-watch {
+  border-left-color: #f59e0b;
+}
+
+.cue-flag {
+  border-left-color: #dc2626;
+}
+
 @media (max-width: 768px) {
   .container {
     padding: 15px;
