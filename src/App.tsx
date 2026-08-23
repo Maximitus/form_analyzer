@@ -2000,7 +2000,7 @@ export default function App() {
         poseRafRef.current = null;
       }
     };
-  }, [poseEnabled, videoSrc, imageSrc, compareVideoSrc, compareImageSrc]);
+  }, [poseEnabled, videoSrc, imageSrc, compareVideoSrc, compareImageSrc, analysisMode, golfHandedness]);
 
   useEffect(() => {
     const canvas = canvasRef.current;

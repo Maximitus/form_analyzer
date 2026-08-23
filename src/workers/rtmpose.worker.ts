@@ -40,7 +40,10 @@ function post(message: WorkerOutboundMessage, transfer?: Transferable[]): void {
 
 function configureOrt(wasmPaths: string): void {
   ort.env.wasm.wasmPaths = wasmPaths.endsWith('/') ? wasmPaths : `${wasmPaths}/`;
-  ort.env.wasm.numThreads = Math.min(4, self.navigator?.hardwareConcurrency ?? 1);
+  const isolated = Boolean((self as unknown as {crossOriginIsolated?: boolean}).crossOriginIsolated);
+  // Threaded WASM needs COOP/COEP (SharedArrayBuffer). Cloudflare may not send those
+  // headers on maxmvs.com, so stay single-threaded unless the page is isolated.
+  ort.env.wasm.numThreads = isolated ? Math.min(4, self.navigator?.hardwareConcurrency ?? 1) : 1;
   ort.env.wasm.simd = true;
   // Already running inside a dedicated worker; nested ORT proxy workers are unnecessary.
   ort.env.wasm.proxy = false;
