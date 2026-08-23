@@ -33,15 +33,13 @@ import {
   Activity,
   LineChart,
 } from 'lucide-react';
-import * as poseDetection from '@tensorflow-models/pose-detection';
-import * as tf from '@tensorflow/tfjs-core';
-import '@tensorflow/tfjs-backend-webgl';
 import SettingsMenu from './SettingsMenu';
 import { useTheme } from './theme';
+import { RtmposeClient } from './pose/rtmposeClient';
+import { poseFrameToTracked, trackedHasVisible } from './pose/toTracked';
+import type { PoseFrame } from './types/pose';
 import {
-  clubLandmarksFromCoco,
   drawGolfOverlay,
-  estimateClubHead,
   GolfPanel,
   GolfSession,
   mapMetricsToOverlay,
@@ -122,34 +120,14 @@ const ZOOM_BUTTON_FACTOR = 1.25;
 const FRAME_STEP_SECONDS = 1 / 30; // approx single frame at 30fps
 const SLIDER_SCRUB_STEP_SECONDS = 1 / 60; // smaller increments for smoother scrubbing
 /**
- * COCO-style IDs kept for all math and overlays. 17–20 are our extensions for
- * heel / toe (BlazePose only); MoveNet had no foot landmarks beyond the ankle.
+ * COCO-style IDs kept for all math and overlays. 17–20 are heel / toe
+ * extensions; RTMPose is COCO-17 so those slots stay at v=0.
  */
 const POSE_NOSE_ID = 0;
 const POSE_TRACKED_IDS = [
   POSE_NOSE_ID,
   11, 12, 13, 14, 15, 16, 5, 6, 7, 8, 9, 10, 17, 18, 19, 20,
 ];
-/** Maps each COCO-style id to BlazePose keypoint index (model output order). */
-const COCO_ID_TO_BLAZEPOSE_INDEX: Record<number, number> = {
-  0: 0,
-  5: 11,
-  6: 12,
-  7: 13,
-  8: 14,
-  9: 15,
-  10: 16,
-  11: 23,
-  12: 24,
-  13: 25,
-  14: 26,
-  15: 27,
-  16: 28,
-  17: 29,
-  18: 30,
-  19: 31,
-  20: 32,
-};
 const POSE_LEFT_SIDE_IDS = new Set([5, 7, 9, 11, 13, 15, 17, 19]);
 const POSE_RIGHT_SIDE_IDS = new Set([6, 8, 10, 12, 14, 16, 18, 20]);
 const POSE_ARM_IDS = new Set([7, 8, 9, 10]);
@@ -177,30 +155,11 @@ const MIN_POSE_VISIBILITY = 0.25;
 const KNEE_SAMPLE_EPSILON_SECONDS = 1 / 1000;
 const POSE_INFERENCE_HZ = 24;
 
-function keypointsFromBlazePoseOutput(
-  keypoints: poseDetection.Keypoint[] | undefined,
-  sourceWidth: number,
-  sourceHeight: number,
-): {x: number; y: number; v: number}[] {
-  if (!keypoints || keypoints.length === 0 || sourceWidth <= 0 || sourceHeight <= 0) {
-    return [];
-  }
-  return POSE_TRACKED_IDS.map((cocoId) => {
-    const bpIdx = COCO_ID_TO_BLAZEPOSE_INDEX[cocoId];
-    const p = keypoints[bpIdx];
-    if (!p) return {x: 0, y: 0, v: 0};
-    const score = p.score ?? 0;
-    return {x: p.x / sourceWidth, y: p.y / sourceHeight, v: score};
-  });
-}
-
 /**
- * BlazePose TF.js uses getImageSize(input) which reads HTMLVideoElement.width/height,
- * not videoWidth/videoHeight — those are often 0 or wrong, collapsing landmarks.
  * Copy the current frame to a canvas sized to the intrinsic video dimensions so
  * the model and our normalization share one coordinate system.
  */
-function blazeposeVideoFrameCanvas(
+function captureVideoFrame(
   video: HTMLVideoElement,
   canvas: HTMLCanvasElement,
 ): HTMLCanvasElement | null {
@@ -217,31 +176,27 @@ function blazeposeVideoFrameCanvas(
   return canvas;
 }
 
-function mediaPixelSize(
-  source: HTMLCanvasElement | HTMLImageElement | HTMLVideoElement | null,
-): {w: number; h: number} {
-  if (!source) return {w: 0, h: 0};
-  if (source instanceof HTMLCanvasElement) return {w: source.width, h: source.height};
-  if (source instanceof HTMLVideoElement) return {w: source.videoWidth, h: source.videoHeight};
-  return {w: source.naturalWidth, h: source.naturalHeight};
-}
-
-function copyMediaToCanvas(
+async function mediaToBitmap(
   source: HTMLCanvasElement | HTMLImageElement | HTMLVideoElement,
   canvas: HTMLCanvasElement,
-): HTMLCanvasElement | null {
-  const {w, h} = mediaPixelSize(source);
-  if (w <= 0 || h <= 0) return source instanceof HTMLCanvasElement ? source : null;
-  if (source instanceof HTMLCanvasElement) return source;
-  if (canvas.width !== w || canvas.height !== h) {
-    canvas.width = w;
-    canvas.height = h;
+): Promise<ImageBitmap | null> {
+  try {
+    if (source instanceof HTMLVideoElement) {
+      const frame = captureVideoFrame(source, canvas);
+      if (!frame) return null;
+      return await createImageBitmap(frame);
+    }
+    if (source instanceof HTMLCanvasElement) {
+      if (source.width <= 0 || source.height <= 0) return null;
+      return await createImageBitmap(source);
+    }
+    if (!source.complete || source.naturalWidth <= 0) return null;
+    return await createImageBitmap(source);
+  } catch {
+    return null;
   }
-  const ctx = canvas.getContext('2d');
-  if (!ctx) return null;
-  ctx.drawImage(source, 0, 0, w, h);
-  return canvas;
 }
+
 const KNEE_MAXIMA_MIN_SAMPLES = 3;
 const KNEE_MAXIMA_MIN_GAP_SECONDS = 0.15;
 /** Min prominence (°): peak must stand this far above the higher adjacent "valley" baseline (filters slope noise). */
@@ -531,7 +486,7 @@ function getBodyProportions(
 }
 
 /**
- * Linear correction of raw 2D segment lengths from BlazePose so ratios sit closer to
+ * Linear correction of raw 2D segment lengths from pose so ratios sit closer to
  * joint-center anthropometry (Drillis-style). Low hip landmarks shorten measured femur
  * and inflate tibia/femur; midline torso is still a bit long vs true trunk height.
  * Category bands and the parallel lean model then use **calibrated** lengths.
@@ -1317,8 +1272,8 @@ export default function App() {
   golfHandednessRef.current = golfHandedness;
   const golfCameraRef = useRef(golfCamera);
   golfCameraRef.current = golfCamera;
-  const poseDetectorRef = useRef<poseDetection.PoseDetector | null>(null);
-  /** Reused frame buffer so BlazePose sees correct canvas dimensions for video. */
+  const rtmposeClientRef = useRef<RtmposeClient | null>(null);
+  /** Reused frame buffer so pose inference sees intrinsic video pixel size. */
   const poseFrameCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const poseRafRef = useRef<number | null>(null);
   const bgVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -1788,8 +1743,8 @@ export default function App() {
         poseRafRef.current = null;
       }
       analysisAbortRef.current = true;
-      poseDetectorRef.current?.dispose();
-      poseDetectorRef.current = null;
+      rtmposeClientRef.current?.stop();
+      rtmposeClientRef.current = null;
     };
   }, []);
 
@@ -1824,62 +1779,34 @@ export default function App() {
     let lastCompareInferenceTs = 0;
     const minInferenceIntervalMs = 1000 / POSE_INFERENCE_HZ;
 
-    const ensureDetector = async () => {
-      if (poseDetectorRef.current) return poseDetectorRef.current;
+    const ensureClient = async () => {
+      if (rtmposeClientRef.current) return rtmposeClientRef.current;
       setPoseStatus('loading');
-      if (tf.getBackend() !== 'webgl') {
-        try {
-          await tf.setBackend('webgl');
-        } catch {
-          // Fallback to whichever backend tfjs can initialize.
-        }
-      }
-      await tf.ready();
-      const detector = await poseDetection.createDetector(
-        poseDetection.SupportedModels.BlazePose,
-        {
-          runtime: 'tfjs',
-          modelType: 'full',
-          enableSmoothing: true,
+      const client = new RtmposeClient({
+        onError: (message) => {
+          console.error('RTMPose worker:', message);
         },
-      );
-      poseDetectorRef.current = detector;
+      });
+      await client.start();
+      rtmposeClientRef.current = client;
       setPoseStatus('ready');
-      return detector;
+      return client;
     };
 
-    const updatePoseFromResult = (
-      poses: poseDetection.Pose[] | null | undefined,
-      source: HTMLVideoElement | HTMLImageElement | HTMLCanvasElement | null,
+    const applyPoseFrame = (
+      pose: PoseFrame,
       setter: (next: {x: number; y: number; v: number}[]) => void,
       autoDetectFacing = false,
       onDetectFacing?: (facing: FacingDirection) => void,
       onDetectSide?: (side: KneeSide) => void,
       golfTime = 0,
-      golfFrame: HTMLCanvasElement | HTMLImageElement | HTMLVideoElement | null = null,
+      applyGolf = false,
     ) => {
-      const keypoints = poses?.[0]?.keypoints;
-      const sourceWidth =
-        source instanceof HTMLCanvasElement
-          ? source.width
-          : source instanceof HTMLVideoElement
-            ? source.videoWidth
-            : source instanceof HTMLImageElement
-              ? source.naturalWidth
-              : 0;
-      const sourceHeight =
-        source instanceof HTMLCanvasElement
-          ? source.height
-          : source instanceof HTMLVideoElement
-            ? source.videoHeight
-            : source instanceof HTMLImageElement
-              ? source.naturalHeight
-              : 0;
-      if (!keypoints || keypoints.length === 0 || sourceWidth <= 0 || sourceHeight <= 0) {
+      const selected = poseFrameToTracked(pose, POSE_TRACKED_IDS);
+      if (!trackedHasVisible(selected, MIN_POSE_VISIBILITY)) {
         setter([]);
         return;
       }
-      const selected = keypointsFromBlazePoseOutput(keypoints, sourceWidth, sourceHeight);
       setter(selected);
       if (autoDetectFacing) {
         const detected = detectFacingFromKeypoints(selected);
@@ -1888,36 +1815,45 @@ export default function App() {
           onDetectSide?.(facingDirectionToLeg(detected));
         }
       }
-      if (analysisModeRef.current === 'golf' && golfFrame) {
-        if (!poseFrameCanvasRef.current) {
-          poseFrameCanvasRef.current = document.createElement('canvas');
-        }
-        const pixels = copyMediaToCanvas(golfFrame, poseFrameCanvasRef.current);
-        const {w, h} = mediaPixelSize(pixels);
-        if (pixels && w > 0 && h > 0) {
-          const cocoPx = trackedPoseToCoco(selected, POSE_TRACKED_IDS, w, h);
-          golfSessionRef.current.setHandedness(golfHandednessRef.current);
-          golfSessionRef.current.setCamera(golfCameraRef.current);
-          const ctx2d = pixels.getContext('2d');
-          let rawClub = undefined as ReturnType<typeof estimateClubHead> | undefined;
-          if (ctx2d) {
-            try {
-              const imageData = ctx2d.getImageData(0, 0, w, h);
-              const landmarks = clubLandmarksFromCoco(cocoPx, golfHandednessRef.current);
-              rawClub = estimateClubHead(imageData.data, w, h, landmarks, golfClubPrevRef.current) ?? undefined;
-              if (rawClub) golfClubPrevRef.current = {x: rawClub.x, y: rawClub.y};
-            } catch {
-              rawClub = undefined;
+      if (applyGolf && analysisModeRef.current === 'golf') {
+        const cocoPx = trackedPoseToCoco(selected, POSE_TRACKED_IDS, pose.width, pose.height);
+        golfSessionRef.current.setHandedness(golfHandednessRef.current);
+        golfSessionRef.current.setCamera(golfCameraRef.current);
+        const rawClub = pose.clubHead
+          ? {
+              x: pose.clubHead.x,
+              y: pose.clubHead.y,
+              score: pose.clubHead.score,
+              gripX: pose.clubHead.gripX,
+              gripY: pose.clubHead.gripY,
+              method: pose.clubHead.method,
             }
-          }
-          setGolfMetrics(golfSessionRef.current.update(cocoPx, rawClub, golfTime));
-        }
+          : undefined;
+        if (rawClub) golfClubPrevRef.current = {x: rawClub.x, y: rawClub.y};
+        setGolfMetrics(golfSessionRef.current.update(cocoPx, rawClub, golfTime));
       }
+    };
+
+    const inferSource = async (
+      client: RtmposeClient,
+      source: HTMLCanvasElement | HTMLImageElement | HTMLVideoElement,
+      mediaTime: number,
+      trackClubHead: boolean,
+    ): Promise<PoseFrame | null> => {
+      if (!poseFrameCanvasRef.current) {
+        poseFrameCanvasRef.current = document.createElement('canvas');
+      }
+      const bitmap = await mediaToBitmap(source, poseFrameCanvasRef.current);
+      if (!bitmap) return null;
+      return client.inferOnce(bitmap, mediaTime, {
+        trackClubHead,
+        leadIsLeft: golfHandednessRef.current === 'right',
+      });
     };
 
     const run = async () => {
       try {
-        const detector = await ensureDetector();
+        const client = await ensureClient();
         if (cancelled) return;
 
         const primaryVideo = videoRef.current;
@@ -1925,29 +1861,28 @@ export default function App() {
         const primaryImage = imageRef.current;
         const compareImage = compareImageRef.current;
         const hasAnyVideo = (!!videoSrc && !!primaryVideo) || (!!compareVideoSrc && !!compareVideo);
+        const trackClub = () => analysisModeRef.current === 'golf';
 
         if (!hasAnyVideo) {
           if (imageSrc && primaryImage) {
-            const result = await detector.estimatePoses(primaryImage, {flipHorizontal: false});
-            if (!cancelled) {
-              updatePoseFromResult(
-                result,
-                primaryImage,
+            const pose = await inferSource(client, primaryImage, 0, trackClub());
+            if (!cancelled && pose) {
+              applyPoseFrame(
+                pose,
                 setPoseKeypoints,
                 true,
                 setPrimaryFacingDirection,
                 setKneeTrackingSide,
                 0,
-                primaryImage,
+                true,
               );
             }
           }
           if (compareImageSrc && compareImage) {
-            const result = await detector.estimatePoses(compareImage, {flipHorizontal: false});
-            if (!cancelled) {
-              updatePoseFromResult(
-                result,
-                compareImage,
+            const pose = await inferSource(client, compareImage, 0, false);
+            if (!cancelled && pose) {
+              applyPoseFrame(
+                pose,
                 setComparePoseKeypoints,
                 true,
                 setCompareFacingDirection,
@@ -1959,27 +1894,24 @@ export default function App() {
         }
 
         if (imageSrc && primaryImage) {
-          // Primary is an image: detect once and keep it.
-          const result = await detector.estimatePoses(primaryImage, {flipHorizontal: false});
-          if (!cancelled) {
-            updatePoseFromResult(
-              result,
-              primaryImage,
+          const pose = await inferSource(client, primaryImage, 0, trackClub());
+          if (!cancelled && pose) {
+            applyPoseFrame(
+              pose,
               setPoseKeypoints,
               true,
               setPrimaryFacingDirection,
               setKneeTrackingSide,
               0,
-              primaryImage,
+              true,
             );
           }
         }
         if (compareImageSrc && compareImage) {
-          const result = await detector.estimatePoses(compareImage, {flipHorizontal: false});
-          if (!cancelled) {
-            updatePoseFromResult(
-              result,
-              compareImage,
+          const pose = await inferSource(client, compareImage, 0, false);
+          if (!cancelled && pose) {
+            applyPoseFrame(
+              pose,
               setComparePoseKeypoints,
               true,
               setCompareFacingDirection,
@@ -1994,7 +1926,6 @@ export default function App() {
           if (!poseFrameCanvasRef.current) {
             poseFrameCanvasRef.current = document.createElement('canvas');
           }
-          const frameCanvas = poseFrameCanvasRef.current;
 
           if (videoSrc && primaryVideo) {
             const v = primaryVideo;
@@ -2005,21 +1936,21 @@ export default function App() {
             ) {
               lastPrimaryVideoTime = v.currentTime;
               lastPrimaryInferenceTs = now;
-              const blazeposeInput = blazeposeVideoFrameCanvas(v, frameCanvas);
-              if (blazeposeInput) {
-                const result = await detector.estimatePoses(blazeposeInput, {flipHorizontal: false});
-                if (!cancelled) {
-                  updatePoseFromResult(
-                    result,
-                    blazeposeInput,
+              try {
+                const pose = await inferSource(client, v, v.currentTime, trackClub());
+                if (!cancelled && pose) {
+                  applyPoseFrame(
+                    pose,
                     setPoseKeypoints,
                     true,
                     setPrimaryFacingDirection,
                     setKneeTrackingSide,
                     v.currentTime,
-                    blazeposeInput,
+                    true,
                   );
                 }
+              } catch (err) {
+                if (!cancelled) console.error('RTMPose primary frame failed:', err);
               }
             }
           }
@@ -2033,19 +1964,19 @@ export default function App() {
             ) {
               lastCompareVideoTime = v.currentTime;
               lastCompareInferenceTs = now;
-              const blazeposeInput = blazeposeVideoFrameCanvas(v, frameCanvas);
-              if (blazeposeInput) {
-                const result = await detector.estimatePoses(blazeposeInput, {flipHorizontal: false});
-                if (!cancelled) {
-                  updatePoseFromResult(
-                    result,
-                    blazeposeInput,
+              try {
+                const pose = await inferSource(client, v, v.currentTime, false);
+                if (!cancelled && pose) {
+                  applyPoseFrame(
+                    pose,
                     setComparePoseKeypoints,
                     true,
                     setCompareFacingDirection,
                     setCompareKneeTrackingSide,
                   );
                 }
+              } catch (err) {
+                if (!cancelled) console.error('RTMPose compare frame failed:', err);
               }
             }
           }
@@ -2055,7 +1986,7 @@ export default function App() {
 
         tick();
       } catch (e) {
-        console.error('Pose detector failed:', e);
+        console.error('RTMPose failed to start:', e);
         if (!cancelled) setPoseStatus('error');
       }
     };
@@ -2533,8 +2464,8 @@ export default function App() {
     const bgVideo = bgVideoRef.current;
     const mainVideo = videoRef.current;
     if (!bgVideo || !mainVideo) return;
-    const detector = poseDetectorRef.current;
-    if (!detector) return;
+    const client = rtmposeClientRef.current;
+    if (!client) return;
 
     const targetDuration = Math.max(getReliableVideoDuration(mainVideo), mainVideo.duration || 0, 0);
     if (targetDuration <= 0) return;
@@ -2679,17 +2610,19 @@ export default function App() {
           });
         }
 
-        const blazeposeInput = blazeposeVideoFrameCanvas(sourceVideo, analysisPoseCanvas);
         let normalized: {x: number; y: number; v: number}[] = [];
-        if (blazeposeInput) {
-          const result = await detector.estimatePoses(blazeposeInput, {flipHorizontal: false});
-          if (isStale()) break;
-          const keypoints = result?.[0]?.keypoints;
-          const w = blazeposeInput.width;
-          const h = blazeposeInput.height;
-          if (keypoints && keypoints.length > 0 && w > 0 && h > 0) {
-            normalized = keypointsFromBlazePoseOutput(keypoints, w, h);
+        try {
+          const bitmap = await mediaToBitmap(sourceVideo, analysisPoseCanvas);
+          if (bitmap) {
+            const pose = await client.inferOnce(bitmap, t, {trackClubHead: false});
+            if (isStale()) break;
+            const mapped = poseFrameToTracked(pose, POSE_TRACKED_IDS);
+            if (trackedHasVisible(mapped, MIN_POSE_VISIBILITY)) {
+              normalized = mapped;
+            }
           }
+        } catch {
+          normalized = [];
         }
         cache.push({time: t, keypoints: normalized});
 
@@ -2814,7 +2747,7 @@ export default function App() {
       return;
     }
     if (poseStatus !== 'ready') return;
-    if (!poseDetectorRef.current || !videoRef.current || !bgVideoRef.current) return;
+    if (!rtmposeClientRef.current || !videoRef.current || !bgVideoRef.current) return;
 
     const mainVideo = videoRef.current;
     const targetDuration = Math.max(
@@ -2936,6 +2869,7 @@ export default function App() {
     setIsPoseAnalyzing(false);
     golfSessionRef.current.reset();
     golfClubPrevRef.current = null;
+    rtmposeClientRef.current?.resetClub();
     setGolfMetrics(null);
   }, [videoSrc, imageSrc, compareVideoSrc, compareImageSrc]);
 
@@ -3607,6 +3541,7 @@ export default function App() {
       setPoseEnabled(true);
       golfSessionRef.current.reset();
       golfClubPrevRef.current = null;
+      rtmposeClientRef.current?.resetClub();
       setGolfMetrics(null);
       return;
     }
